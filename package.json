@@ -7,12 +7,9 @@
     "build": "bun build public/index.html --outdir=dist --minify"
   },
   "dependencies": {
-    "@babel/runtime": "^7.28.4",
-    "@uiw/codemirror-theme-dracula": "^4.25.4",
-    "@uiw/codemirror-theme-github": "^4.25.4",
-    "@uiw/codemirror-theme-tokyo-night": "^4.25.4",
+    "@monaco-editor/react": "^4.7.0",
     "bun-plugin-tailwind": "^0.1.2",
-    "codemirror": "^6.0.2",
+    "monaco-editor": "^0.55.1",
     "react": "^19",
     "react-dom": "^19",
     "tailwindcss": "^4.1.11"

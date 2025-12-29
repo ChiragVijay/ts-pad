@@ -1,11 +1,19 @@
+import { APP_LANGUAGES, type LanguageDefinition } from "@/languages";
 import { APP_THEMES, type ThemeDefinition } from "@/themes";
 
 interface SidebarProps {
   theme: ThemeDefinition;
+  language: LanguageDefinition;
   setThemeId: (theme: string) => void;
+  setLanguageId: (language: string) => void;
 }
 
-const Sidebar = ({ theme, setThemeId }: SidebarProps) => {
+const Sidebar = ({
+  theme,
+  setThemeId,
+  language,
+  setLanguageId,
+}: SidebarProps) => {
   const isDark = theme.type === "dark";
   return (
     <div className="flex h-full flex-row items-center justify-between px-4 md:flex-col md:items-stretch md:p-4">
@@ -47,9 +55,16 @@ const Sidebar = ({ theme, setThemeId }: SidebarProps) => {
                 ? "border-gray-700 bg-gray-800 text-white"
                 : "border-gray-300 bg-white text-black"
             }`}
+            value={language.id}
+            onChange={(e) => setLanguageId(e.target.value)}
           >
-            <option value="typescript">Typescript</option>
-            <option value="javascript">Javascript</option>
+            {APP_LANGUAGES.sort((a, b) => a.label.localeCompare(b.label)).map(
+              (l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                </option>
+              ),
+            )}
           </select>
         </div>
       </div>

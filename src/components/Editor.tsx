@@ -1,49 +1,29 @@
+import type { LanguageDefinition } from "@/languages";
 import type { ThemeDefinition } from "@/themes";
-import { Compartment } from "@codemirror/state";
-import { basicSetup, EditorView } from "codemirror";
-import { useEffect, useRef } from "react";
+import MonacoEditor from "@monaco-editor/react";
 
 interface EditorProps {
   theme: ThemeDefinition;
+  language: LanguageDefinition;
 }
 
-const themeConfig = new Compartment();
-
-const Editor = ({ theme }: EditorProps) => {
-  const editorRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<EditorView>(null);
-
-  useEffect(() => {
-    if (editorRef.current) {
-      const view = new EditorView({
-        doc: "",
-        extensions: [
-          basicSetup,
-          themeConfig.of(theme.extension),
-          EditorView.theme({
-            "&": { height: "100%" },
-            ".cm-scroller": { overflow: "auto" },
-          }),
-        ],
-        parent: editorRef.current,
-      });
-      viewRef.current = view;
-
-      return () => {
-        view.destroy();
-      };
-    }
-  }, []);
-
-  useEffect(() => {
-    if (viewRef.current) {
-      viewRef.current.dispatch({
-        effects: themeConfig.reconfigure(theme.extension),
-      });
-    }
-  }, [theme]);
-
-  return <div className="h-full w-full" ref={editorRef}></div>;
+const Editor = ({ theme, language }: EditorProps) => {
+  return (
+    <MonacoEditor
+      height="100%"
+      language={language.id}
+      theme={theme.id}
+      options={{
+        fontSize: 14,
+        minimap: { enabled: false },
+        padding: { top: 16 },
+        scrollBeyondLastLine: false,
+        automaticLayout: true,
+        tabSize: 2,
+        wordWrap: "on",
+      }}
+    />
+  );
 };
 
 export default Editor;

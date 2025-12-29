@@ -5,6 +5,7 @@
     "module": "ESNext",
     "jsx": "react-jsx",
     "allowJs": true,
+    "resolveJsonModule": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,

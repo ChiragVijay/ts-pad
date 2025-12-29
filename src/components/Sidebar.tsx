@@ -1,5 +1,6 @@
 import { APP_LANGUAGES, type LanguageDefinition } from "@/languages";
 import { APP_THEMES, type ThemeDefinition } from "@/themes";
+import { version } from "../../package.json";
 
 interface SidebarProps {
   theme: ThemeDefinition;
@@ -71,7 +72,7 @@ const Sidebar = ({
 
       <div className="mt-auto hidden pt-4 md:block">
         <p className="text-[10px] tracking-widest text-gray-400 uppercase">
-          v0.0.1
+          v{version}
         </p>
       </div>
     </div>

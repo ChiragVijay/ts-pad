@@ -7,14 +7,21 @@
     "build": "bun build public/index.html --outdir=dist --minify"
   },
   "dependencies": {
+    "@babel/runtime": "^7.28.4",
+    "@uiw/codemirror-theme-dracula": "^4.25.4",
+    "@uiw/codemirror-theme-github": "^4.25.4",
+    "@uiw/codemirror-theme-tokyo-night": "^4.25.4",
     "bun-plugin-tailwind": "^0.1.2",
+    "codemirror": "^6.0.2",
     "react": "^19",
     "react-dom": "^19",
     "tailwindcss": "^4.1.11"
   },
   "devDependencies": {
+    "@types/bun": "latest",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/bun": "latest"
+    "prettier": "^3.7.4",
+    "prettier-plugin-tailwindcss": "^0.7.2"
   }
 }

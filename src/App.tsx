@@ -1,12 +1,15 @@
-import { useState } from "react";
 import Editor from "./components/Editor";
 import Sidebar from "./components/Sidebar";
+import { useLocalStorage } from "./hooks/useLocalStorage";
 import { APP_LANGUAGES } from "./languages";
 import { APP_THEMES } from "./themes";
 
 export function App() {
-  const [themeId, setThemeId] = useState("light");
-  const [languageId, setLanguageId] = useState("typescript");
+  const [themeId, setThemeId] = useLocalStorage("tspad-theme", "light");
+  const [languageId, setLanguageId] = useLocalStorage(
+    "tspad-lang",
+    "typescript",
+  );
 
   const currentTheme =
     APP_THEMES.find((t) => t.id === themeId) || APP_THEMES[0];

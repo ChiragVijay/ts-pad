@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import type { Char, RemoteInsertOp } from "server/crdt";
 
 export type WebSocketMessage =
   | { type: "init"; payload: string }
-  | { type: "update"; payload: string };
+  | { type: "update"; payload: string }
+  | { type: "crdt-insert"; payload: RemoteInsertOp }
+  | { type: "crdt-delete"; payload: Char };
 
 export function useWebSocket(docId: string) {
   const [isConnected, setIsConnected] = useState(false);
@@ -25,11 +28,9 @@ export function useWebSocket(docId: string) {
         switch (type) {
           case "init":
             console.log("Initial state received:", payload);
-            // This is where we will eventually set the Editor content
             break;
           case "update":
             console.log("Remote update received:", payload);
-            // This is where we will eventually apply changes
             break;
         }
       } catch (error) {

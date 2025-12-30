@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
+export type WebSocketMessage =
+  | { type: "init"; payload: string }
+  | { type: "update"; payload: string };
+
 export function useWebSocket(docId: string) {
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
@@ -11,17 +15,34 @@ export function useWebSocket(docId: string) {
     socketRef.current = ws;
 
     ws.onopen = () => setIsConnected(true);
+
     ws.onclose = () => setIsConnected(false);
 
-    return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
+    ws.onmessage = (event) => {
+      try {
+        const { type, payload } = JSON.parse(event.data);
+
+        switch (type) {
+          case "init":
+            console.log("Initial state received:", payload);
+            // This is where we will eventually set the Editor content
+            break;
+          case "update":
+            console.log("Remote update received:", payload);
+            // This is where we will eventually apply changes
+            break;
+        }
+      } catch (error) {
+        console.error("Error parsing message:", error);
       }
+    };
+    return () => {
+      ws.close();
       socketRef.current = null;
     };
   }, [docId]);
 
-  const sendMessage = (message: any) => {
+  const sendMessage = (message: WebSocketMessage) => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify(message));
     }

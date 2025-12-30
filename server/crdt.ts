@@ -35,10 +35,15 @@ export class CRDT {
   }
 
   localDelete(index: number): Char | null {
-    const char = this.array[index];
-    if (char) {
-      char.visible = false;
-      return char;
+    let visibleCount = 0;
+    for (let i = 0; i < this.array.length; i++) {
+      if (this.array[i].visible) {
+        if (visibleCount === index) {
+          this.array[i].visible = false;
+          return this.array[i];
+        }
+        visibleCount++;
+      }
     }
     return null;
   }
@@ -48,9 +53,7 @@ export class CRDT {
 
     let index = -1;
     if (leftId !== null) {
-      index = this.array.findIndex(
-        (c) => c.id.counter === leftId.counter && c.id.siteId === leftId.siteId,
-      );
+      index = this.findIndexById(leftId);
 
       if (index === -1) return;
     }
@@ -72,12 +75,29 @@ export class CRDT {
   }
 
   remoteDelete(charId: Identifier) {
-    const char = this.array.find(
-      (c) => c.id.counter === charId.counter && c.id.siteId === charId.siteId,
-    );
-    if (char) {
-      char.visible = false;
+    const index = this.findIndexById(charId);
+    if (index !== -1) {
+      this.array[index].visible = false;
     }
+  }
+
+  private findIndexById(id: Identifier): number {
+    return this.array.findIndex(
+      (c) => c.id.counter === id.counter && c.id.siteId === id.siteId,
+    );
+  }
+
+  getVisibleIndex(charId: Identifier): number {
+    const targetIndex = this.findIndexById(charId);
+    if (targetIndex === -1) return -1;
+
+    let visibleIndex = 0;
+    for (let i = 0; i < targetIndex; i++) {
+      if (this.array[i].visible) {
+        visibleIndex++;
+      }
+    }
+    return visibleIndex;
   }
 
   toString(): string {
@@ -85,5 +105,14 @@ export class CRDT {
       .filter((char) => char.visible)
       .map((char) => char.value)
       .join("");
+  }
+
+  getState(): { array: Char[]; counter: number } {
+    return { array: this.array, counter: this.counter };
+  }
+
+  setState(state: { array: Char[]; counter: number }) {
+    this.array = state.array;
+    this.counter = state.counter;
   }
 }

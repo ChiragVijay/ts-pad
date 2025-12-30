@@ -1,39 +1,97 @@
+import type { WebSocketMessage } from "@/hooks/useWebSocket";
 import type { ServerWebSocket } from "bun";
 import { docManager } from "server/documentManager";
 
 export type WebSocketData = {
   documentId: string;
+  userId: string;
+  username: string;
 };
 
 export const websocketHandlers = {
   open(ws: ServerWebSocket<WebSocketData>) {
-    console.log("WebSocket connection opened.");
-    console.log(`Document ID: ${ws.data.documentId}`);
-    ws.subscribe(ws.data.documentId);
+    const { documentId, userId, username } = ws.data;
+    ws.subscribe(documentId);
 
-    const state = docManager.getDocumentState(ws.data.documentId);
+    const state = docManager.getDocumentState(documentId);
+    const user = { id: userId, name: username };
+
+    state.addUser(user);
 
     ws.send(
       JSON.stringify({
         type: "init",
-        payload: state.content,
+        payload: state.crdt.getState(),
+        users: state.getUserList(),
+        language: state.language,
       }),
     );
-    ws.send(JSON.stringify({ type: "update", payload: "Welcome to server" }));
+
+    ws.publish(
+      documentId,
+      JSON.stringify({
+        type: "user-join",
+        payload: user,
+      }),
+    );
   },
 
   message(ws: ServerWebSocket<WebSocketData>, message: string) {
-    console.log(`Websocket message received: ${message}`);
-    const { type, payload } = JSON.parse(message);
+    const msg = JSON.parse(message) as WebSocketMessage;
+    const { documentId, userId } = ws.data;
+    const state = docManager.getDocumentState(documentId);
 
-    ws.publish(ws.data.documentId, message);
+    switch (msg.type) {
+      case "crdt-insert":
+        state.crdt.remoteInsert(msg.payload);
+        ws.publish(documentId, message);
+        break;
 
-    docManager.updateDocumentState(ws.data.documentId, payload);
+      case "crdt-delete":
+        state.crdt.remoteDelete(msg.payload.id);
+        ws.publish(documentId, message);
+        break;
+
+      case "client-rename":
+        state.renameUser(userId, msg.payload.name);
+        const renameMsg = JSON.stringify({
+          type: "user-rename",
+          payload: { id: userId, name: msg.payload.name },
+        });
+        ws.send(renameMsg);
+        ws.publish(documentId, renameMsg);
+        break;
+
+      case "client-language":
+        state.setLanguage(msg.payload.language);
+        ws.publish(
+          documentId,
+          JSON.stringify({
+            type: "language-change",
+            payload: { language: msg.payload.language },
+          }),
+        );
+        break;
+
+      default:
+        break;
+    }
   },
 
   close(ws: ServerWebSocket<WebSocketData>, code: number, message: string) {
-    console.log("WebSocket connection closed coming from close handler.");
-    ws.unsubscribe(ws.data.documentId);
-    ws.close(code, message);
+    const { documentId, userId } = ws.data;
+    const state = docManager.getDocumentState(documentId);
+
+    state.removeUser(userId);
+
+    ws.publish(
+      documentId,
+      JSON.stringify({
+        type: "user-leave",
+        payload: { id: userId },
+      }),
+    );
+
+    ws.unsubscribe(documentId);
   },
 };

@@ -1,8 +1,40 @@
-class DocumentState {
-  content: string = "";
+import { CRDT } from "./crdt";
 
-  updateContent(change: any) {
-    this.content += change;
+export interface User {
+  id: string;
+  name: string;
+}
+
+class DocumentState {
+  crdt: CRDT;
+  users: Map<string, User> = new Map();
+  language: string = "typescript";
+
+  constructor() {
+    this.crdt = new CRDT("server");
+  }
+
+  setLanguage(language: string) {
+    this.language = language;
+  }
+
+  addUser(user: User) {
+    this.users.set(user.id, user);
+  }
+
+  removeUser(userId: string) {
+    this.users.delete(userId);
+  }
+
+  renameUser(userId: string, newName: string) {
+    const user = this.users.get(userId);
+    if (user) {
+      user.name = newName;
+    }
+  }
+
+  getUserList(): User[] {
+    return Array.from(this.users.values());
   }
 }
 
@@ -22,11 +54,6 @@ class DocumentManager {
       this.documents.set(docId, state);
     }
     return state;
-  }
-
-  updateDocumentState(docId: string, change: any) {
-    const state = this.getDocumentState(docId);
-    state.updateContent(change);
   }
 }
 

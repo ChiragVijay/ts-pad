@@ -8,17 +8,21 @@ const server = Bun.serve<WebSocketData>({
 
   routes: {
     "/": homepage,
+    "/doc/*": homepage,
     "/api/status": new Response("OK"),
   },
 
   fetch(req, server) {
     const url = new URL(req.url);
-    const documentId = url.searchParams.get("docId");
 
-    if (url.pathname === "/ws" && documentId) {
+    const documentId = url.searchParams.get("docId");
+    const userId = url.searchParams.get("userId");
+    const username = url.searchParams.get("username") || "Anonymous";
+
+    if (url.pathname === "/ws" && documentId && userId) {
       if (
         server.upgrade(req, {
-          data: { documentId },
+          data: { documentId, userId, username },
         })
       ) {
         return;

@@ -1,19 +1,43 @@
 import { useEffect, useRef, useState } from "react";
 import type { Char, RemoteInsertOp } from "server/crdt";
 
+export interface User {
+  id: string;
+  name: string;
+}
+
 export type WebSocketMessage =
-  | { type: "init"; payload: string }
+  | {
+      type: "init";
+      payload: { array: Char[]; counter: number };
+      users: User[];
+      language: string;
+    }
   | { type: "update"; payload: string }
   | { type: "crdt-insert"; payload: RemoteInsertOp }
-  | { type: "crdt-delete"; payload: Char };
+  | { type: "crdt-delete"; payload: Char }
+  | { type: "user-join"; payload: User }
+  | { type: "user-leave"; payload: { id: string } }
+  | { type: "user-rename"; payload: User }
+  | { type: "client-join"; payload: User }
+  | { type: "client-rename"; payload: User }
+  | { type: "language-change"; payload: { language: string } }
+  | { type: "client-language"; payload: { language: string } };
 
-export function useWebSocket(docId: string) {
+export function useWebSocket(
+  docId: string,
+  userId: string,
+  username: string,
+  onmessage?: (msg: WebSocketMessage) => void,
+) {
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
+  const onmessageRef = useRef(onmessage);
+  onmessageRef.current = onmessage;
 
   useEffect(() => {
     const host = window.location.host;
-    const url = `ws://${host}/ws?docId=${docId}`;
+    const url = `ws://${host}/ws?docId=${docId}&userId=${userId}&username=${encodeURIComponent(username)}`;
     const ws = new WebSocket(url);
     socketRef.current = ws;
 
@@ -23,16 +47,8 @@ export function useWebSocket(docId: string) {
 
     ws.onmessage = (event) => {
       try {
-        const { type, payload } = JSON.parse(event.data);
-
-        switch (type) {
-          case "init":
-            console.log("Initial state received:", payload);
-            break;
-          case "update":
-            console.log("Remote update received:", payload);
-            break;
-        }
+        const message = JSON.parse(event.data) as WebSocketMessage;
+        onmessageRef.current?.(message);
       } catch (error) {
         console.error("Error parsing message:", error);
       }
@@ -41,7 +57,7 @@ export function useWebSocket(docId: string) {
       ws.close();
       socketRef.current = null;
     };
-  }, [docId]);
+  }, [docId, userId]);
 
   const sendMessage = (message: WebSocketMessage) => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {

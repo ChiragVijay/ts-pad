@@ -14,6 +14,12 @@ export interface RemoteInsertOp {
   leftId: Identifier | null;
 }
 
+export interface CRDTSnapshot {
+  siteIds: string[];
+  chars: [number, number, string, number][];
+  counter: number;
+}
+
 export class CRDT {
   private array: Char[] = [];
   private counter: number = 0;
@@ -114,5 +120,39 @@ export class CRDT {
   setState(state: { array: Char[]; counter: number }) {
     this.array = state.array;
     this.counter = state.counter;
+  }
+
+  getSnapshot(): CRDTSnapshot {
+    const siteIdMap = new Map<string, number>();
+    const siteIds: string[] = [];
+
+    const getSiteIndex = (id: string) => {
+      if (!siteIdMap.has(id)) {
+        siteIdMap.set(id, siteIds.length);
+        siteIds.push(id);
+      }
+      return siteIdMap.get(id)!;
+    };
+
+    const chars = this.array.map(
+      (c) =>
+        [
+          getSiteIndex(c.id.siteId),
+          c.id.counter,
+          c.value,
+          c.visible ? 1 : 0,
+        ] as [number, number, string, number],
+    );
+
+    return { siteIds, chars, counter: this.counter };
+  }
+
+  applySnapshot(snapshot: CRDTSnapshot) {
+    this.counter = snapshot.counter;
+    this.array = snapshot.chars.map((c) => ({
+      id: { siteId: snapshot.siteIds[c[0]], counter: c[1] },
+      value: c[2],
+      visible: c[3] === 1,
+    }));
   }
 }

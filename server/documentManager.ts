@@ -1,8 +1,16 @@
+import { getUserColor } from "../src/utils/colors";
 import { CRDT } from "./crdt";
+
+export interface CursorPosition {
+  lineNumber: number;
+  column: number;
+}
 
 export interface User {
   id: string;
   name: string;
+  color: string;
+  cursor?: CursorPosition;
 }
 
 class DocumentState {
@@ -18,8 +26,9 @@ class DocumentState {
     this.language = language;
   }
 
-  addUser(user: User) {
-    this.users.set(user.id, user);
+  addUser(user: Omit<User, "color">) {
+    const color = getUserColor(user.id);
+    this.users.set(user.id, { ...user, color });
   }
 
   removeUser(userId: string) {
@@ -31,6 +40,17 @@ class DocumentState {
     if (user) {
       user.name = newName;
     }
+  }
+
+  updateCursor(userId: string, cursor: CursorPosition) {
+    const user = this.users.get(userId);
+    if (user) {
+      user.cursor = cursor;
+    }
+  }
+
+  getUser(userId: string): User | undefined {
+    return this.users.get(userId);
   }
 
   getUserList(): User[] {

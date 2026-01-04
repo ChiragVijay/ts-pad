@@ -1,5 +1,6 @@
 import { APP_LANGUAGES, type LanguageDefinition } from "@/languages";
 import { APP_THEMES, type ThemeDefinition } from "@/themes";
+import { getUserColorClass } from "@/utils/colors";
 import { useState } from "react";
 import { version } from "../../package.json";
 import type { User } from "../hooks/useWebSocket";
@@ -70,21 +71,6 @@ const Sidebar = ({
       .slice(0, 2);
   };
 
-  const getColor = (id: string) => {
-    const colors = [
-      "bg-blue-500",
-      "bg-green-500",
-      "bg-purple-500",
-      "bg-orange-500",
-      "bg-pink-500",
-      "bg-teal-500",
-    ];
-    const index =
-      id.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) %
-      colors.length;
-    return colors[index];
-  };
-
   return (
     <div className="flex h-full flex-row items-center justify-between px-4 md:flex-col md:items-stretch md:p-4">
       <div
@@ -110,7 +96,7 @@ const Sidebar = ({
                 }`}
               >
                 <div
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-white ${getColor(user.id)}`}
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-medium text-white ${getUserColorClass(user.id)}`}
                 >
                   {getInitials(user.name)}
                 </div>

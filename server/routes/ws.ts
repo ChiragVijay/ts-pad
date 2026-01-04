@@ -18,20 +18,29 @@ export const websocketHandlers = {
 
     state.addUser(user);
 
-    ws.send(
-      JSON.stringify({
-        type: "init",
-        payload: state.crdt.getState(),
-        users: state.getUserList(),
-        language: state.language,
-      }),
-    );
+    const userWithColor = state.getUser(userId)!;
+
+    try {
+      ws.send(
+        JSON.stringify({
+          type: "init",
+          payload: state.crdt.getSnapshot(),
+          users: state.getUserList(),
+          language: state.language,
+        }),
+      );
+    } catch (error) {
+      console.error(
+        `Error sending init message to user ${userId} for doc ${documentId}:`,
+        error,
+      );
+    }
 
     ws.publish(
       documentId,
       JSON.stringify({
         type: "user-join",
-        payload: user,
+        payload: userWithColor,
       }),
     );
   },
@@ -54,12 +63,24 @@ export const websocketHandlers = {
 
       case "client-rename":
         state.renameUser(userId, msg.payload.name);
+        const user = state.getUser(userId);
         const renameMsg = JSON.stringify({
           type: "user-rename",
-          payload: { id: userId, name: msg.payload.name },
+          payload: user,
         });
         ws.send(renameMsg);
         ws.publish(documentId, renameMsg);
+        break;
+
+      case "client-cursor":
+        state.updateCursor(userId, msg.payload);
+        ws.publish(
+          documentId,
+          JSON.stringify({
+            type: "cursor-update",
+            payload: { userId, cursor: msg.payload },
+          }),
+        );
         break;
 
       case "client-language":

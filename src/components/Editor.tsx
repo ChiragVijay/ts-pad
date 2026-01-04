@@ -33,6 +33,7 @@ const Editor = ({
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const isRemoteChange = useRef(false);
   const hasInitialized = useRef(false);
+  const cursorDecorationsRef = useRef<string[]>([]);
 
   const getEditorModel = useCallback(() => {
     return editorRef.current?.getModel();
@@ -114,6 +115,7 @@ const Editor = ({
     applyLocalDelete,
     renameUser,
     changeLanguage,
+    updateCursor,
   } = useSync(
     docId,
     userId,
@@ -145,6 +147,66 @@ const Editor = ({
   useEffect(() => {
     renameUserRef.current = renameUser;
   }, [renameUser, renameUserRef]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const remoteUsers = users.filter((u) => u.id !== userId && u.cursor);
+
+    const decorations: monaco.editor.IModelDeltaDecoration[] = remoteUsers.map(
+      (user) => ({
+        range: new monaco.Range(
+          user.cursor!.lineNumber,
+          user.cursor!.column,
+          user.cursor!.lineNumber,
+          user.cursor!.column,
+        ),
+        options: {
+          className: `remote-cursor`,
+          beforeContentClassName: `remote-cursor-line`,
+          stickiness:
+            monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+        },
+      }),
+    );
+
+    const styleId = "remote-cursor-styles";
+    let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+
+    const css = remoteUsers
+      .map(
+        (user, idx) => `
+      .remote-cursor-${idx} { border-left-color: ${user.color} !important; }
+    `,
+      )
+      .join("\n");
+    styleEl.textContent = css;
+
+    const decorationsWithColors = remoteUsers.map((user, idx) => ({
+      range: new monaco.Range(
+        user.cursor!.lineNumber,
+        user.cursor!.column,
+        user.cursor!.lineNumber,
+        user.cursor!.column,
+      ),
+      options: {
+        className: `remote-cursor remote-cursor-${idx}`,
+        beforeContentClassName: `remote-cursor-line remote-cursor-${idx}`,
+        stickiness:
+          monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+      },
+    }));
+
+    cursorDecorationsRef.current = editor
+      .getModel()!
+      .deltaDecorations(cursorDecorationsRef.current, decorationsWithColors);
+  }, [users, userId]);
 
   const prevLanguageRef = useRef(language.id);
   useEffect(() => {
@@ -187,8 +249,15 @@ const Editor = ({
     (editor) => {
       editorRef.current = editor;
       editor.onDidChangeModelContent(handleContentChange);
+
+      editor.onDidChangeCursorPosition((e) => {
+        updateCursor({
+          lineNumber: e.position.lineNumber,
+          column: e.position.column,
+        });
+      });
     },
-    [handleContentChange],
+    [handleContentChange, updateCursor],
   );
 
   return (

@@ -1,6 +1,11 @@
 import { useCallback, useRef, useState } from "react";
 import { CRDT } from "../../server/crdt";
-import { useWebSocket, type User, type WebSocketMessage } from "./useWebSocket";
+import {
+  useWebSocket,
+  type CursorPosition,
+  type User,
+  type WebSocketMessage,
+} from "./useWebSocket";
 
 export function useSync(
   docId: string,
@@ -13,12 +18,14 @@ export function useSync(
   const crdt = useRef(new CRDT(userId)).current;
   const [users, setUsers] = useState<User[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const lastCursorSent = useRef<CursorPosition | null>(null);
+  const cursorThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleMessage = useCallback(
     (msg: WebSocketMessage) => {
       switch (msg.type) {
         case "init":
-          crdt.setState(msg.payload);
+          crdt.applySnapshot(msg.payload);
           setUsers(msg.users);
           setIsInitialized(true);
           onLanguageChange?.(msg.language);
@@ -44,6 +51,15 @@ export function useSync(
           setUsers((prev) =>
             prev.map((u) =>
               u.id === msg.payload.id ? { ...u, name: msg.payload.name } : u,
+            ),
+          );
+          break;
+        case "cursor-update":
+          setUsers((prev) =>
+            prev.map((u) =>
+              u.id === msg.payload.userId
+                ? { ...u, cursor: msg.payload.cursor }
+                : u,
             ),
           );
           break;
@@ -102,6 +118,32 @@ export function useSync(
     [sendMessage],
   );
 
+  const updateCursor = useCallback(
+    (cursor: CursorPosition) => {
+      if (
+        lastCursorSent.current?.lineNumber === cursor.lineNumber &&
+        lastCursorSent.current?.column === cursor.column
+      ) {
+        return;
+      }
+
+      if (cursorThrottleRef.current) {
+        return;
+      }
+
+      lastCursorSent.current = cursor;
+      sendMessage({
+        type: "client-cursor",
+        payload: cursor,
+      });
+
+      cursorThrottleRef.current = setTimeout(() => {
+        cursorThrottleRef.current = null;
+      }, 50);
+    },
+    [sendMessage],
+  );
+
   return {
     crdt,
     isConnected,
@@ -111,5 +153,6 @@ export function useSync(
     applyLocalDelete,
     renameUser,
     changeLanguage,
+    updateCursor,
   };
 }

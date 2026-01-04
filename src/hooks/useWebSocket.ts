@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import type { Char, RemoteInsertOp } from "server/crdt";
+import type { Char, CRDTSnapshot, RemoteInsertOp } from "server/crdt";
+
+export interface CursorPosition {
+  lineNumber: number;
+  column: number;
+}
 
 export interface User {
   id: string;
   name: string;
+  color: string;
+  cursor?: CursorPosition;
 }
 
 export type WebSocketMessage =
   | {
       type: "init";
-      payload: { array: Char[]; counter: number };
+      payload: CRDTSnapshot;
       users: User[];
       language: string;
     }
@@ -20,9 +27,14 @@ export type WebSocketMessage =
   | { type: "user-leave"; payload: { id: string } }
   | { type: "user-rename"; payload: User }
   | { type: "client-join"; payload: User }
-  | { type: "client-rename"; payload: User }
+  | { type: "client-rename"; payload: Pick<User, "id" | "name"> }
   | { type: "language-change"; payload: { language: string } }
-  | { type: "client-language"; payload: { language: string } };
+  | { type: "client-language"; payload: { language: string } }
+  | {
+      type: "cursor-update";
+      payload: { userId: string; cursor: CursorPosition };
+    }
+  | { type: "client-cursor"; payload: CursorPosition };
 
 export function useWebSocket(
   docId: string,

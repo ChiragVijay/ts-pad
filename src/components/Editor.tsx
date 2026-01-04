@@ -2,7 +2,13 @@ import type { LanguageDefinition } from "@/languages";
 import type { ThemeDefinition } from "@/themes";
 import MonacoEditor, { type OnMount } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
-import { useCallback, useEffect, useRef, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import type { Identifier, RemoteInsertOp } from "server/crdt";
 import { useSync } from "../hooks/useSync";
 import type { User } from "../hooks/useWebSocket";
@@ -34,6 +40,7 @@ const Editor = ({
   const isRemoteChange = useRef(false);
   const hasInitialized = useRef(false);
   const cursorDecorationsRef = useRef<string[]>([]);
+  const [isEditorMounted, setIsEditorMounted] = useState(false);
 
   const getEditorModel = useCallback(() => {
     return editorRef.current?.getModel();
@@ -217,10 +224,15 @@ const Editor = ({
   }, [language.id, isInitialized, changeLanguage]);
 
   useEffect(() => {
-    if (isInitialized && editorRef.current && !hasInitialized.current) {
+    if (
+      isInitialized &&
+      isEditorMounted &&
+      editorRef.current &&
+      !hasInitialized.current
+    ) {
       handleInit();
     }
-  }, [isInitialized, handleInit]);
+  }, [isInitialized, isEditorMounted, handleInit]);
 
   const handleContentChange = useCallback(
     (event: monaco.editor.IModelContentChangedEvent) => {
@@ -248,6 +260,7 @@ const Editor = ({
   const handleEditorMount: OnMount = useCallback(
     (editor) => {
       editorRef.current = editor;
+      setIsEditorMounted(true);
       editor.onDidChangeModelContent(handleContentChange);
 
       editor.onDidChangeCursorPosition((e) => {

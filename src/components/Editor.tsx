@@ -11,7 +11,7 @@ import {
 } from "react";
 import type { CRDTAdapter } from "server/crdt/types";
 import { useSync } from "../hooks/useSync";
-import type { User } from "../hooks/useWebSocket";
+import type { ConnectionState, ServerError, User } from "../hooks/useWebSocket";
 
 interface EditorProps {
   theme: ThemeDefinition;
@@ -22,6 +22,8 @@ interface EditorProps {
   onUsersChange: (users: User[]) => void;
   onRenameUser: (newName: string) => void;
   onLanguageChange: (languageId: string) => void;
+  onConnectionStateChange?: (state: ConnectionState) => void;
+  onError?: (error: ServerError | null) => void;
   renameUserRef: RefObject<((name: string) => void) | null>;
 }
 
@@ -39,6 +41,8 @@ const Editor = ({
   onUsersChange,
   onRenameUser,
   onLanguageChange,
+  onConnectionStateChange,
+  onError,
   renameUserRef,
 }: EditorProps) => {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -121,6 +125,8 @@ const Editor = ({
 
   const {
     crdt,
+    connectionState,
+    error,
     isInitialized,
     users,
     applyLocalInsert,
@@ -155,6 +161,14 @@ const Editor = ({
   useEffect(() => {
     onUsersChange(users);
   }, [users, onUsersChange]);
+
+  useEffect(() => {
+    onConnectionStateChange?.(connectionState);
+  }, [connectionState, onConnectionStateChange]);
+
+  useEffect(() => {
+    onError?.(error);
+  }, [error, onError]);
 
   useEffect(() => {
     renameUserRef.current = renameUser;

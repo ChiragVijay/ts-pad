@@ -75,7 +75,10 @@ export function useSync(
           break;
         }
         case "user-join":
-          setUsers((prev) => [...prev, msg.payload]);
+          setUsers((prev) => [
+            ...prev.filter((u) => u.id !== msg.payload.id),
+            msg.payload,
+          ]);
           break;
         case "user-leave":
           setUsers((prev) => prev.filter((u) => u.id !== msg.payload.id));
@@ -115,7 +118,7 @@ export function useSync(
     [processMessage],
   );
 
-  const [isConnected, sendMessage] = useWebSocket(
+  const { connectionState, error, sendMessage } = useWebSocket(
     docId,
     userId,
     username,
@@ -182,7 +185,8 @@ export function useSync(
 
   return {
     crdt: crdtRef.current,
-    isConnected,
+    connectionState,
+    error,
     isInitialized,
     users,
     applyLocalInsert,

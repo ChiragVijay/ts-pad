@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Editor from "./components/Editor";
+import { LoadingScreen } from "./components/LoadingScreen";
 import Sidebar from "./components/Sidebar";
 import { useLocalStorage } from "./hooks/useLocalStorage";
-import type { User } from "./hooks/useWebSocket";
+import type { ConnectionState, ServerError, User } from "./hooks/useWebSocket";
 import { APP_LANGUAGES } from "./languages";
 import { APP_THEMES } from "./themes";
 
@@ -43,7 +44,20 @@ export function App() {
 
   const [docId, setDocId] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [connectionState, setConnectionState] =
+    useState<ConnectionState>("connecting");
+  const [connectionError, setConnectionError] = useState<ServerError | null>(
+    null,
+  );
   const renameUserRef = useRef<((name: string) => void) | null>(null);
+
+  const handleConnectionStateChange = useCallback((state: ConnectionState) => {
+    setConnectionState(state);
+  }, []);
+
+  const handleError = useCallback((error: ServerError | null) => {
+    setConnectionError(error);
+  }, []);
 
   useEffect(() => {
     const urlDocId = getDocIdFromUrl();
@@ -69,18 +83,30 @@ export function App() {
 
   if (!docId) {
     return (
-      <div
-        className={`flex h-screen items-center justify-center ${isDark ? "bg-gray-900 text-white" : "bg-white text-black"}`}
-      >
-        <p className="text-sm text-gray-500">Loading...</p>
-      </div>
+      <LoadingScreen
+        connectionState="connecting"
+        error={null}
+        isDark={isDark}
+      />
     );
   }
 
+  const showLoadingOverlay = connectionState !== "connected" || connectionError;
+
   return (
     <div
-      className={`flex h-screen flex-col overflow-hidden transition-colors duration-300 ${isDark ? "bg-gray-900 text-white" : "bg-white text-black"}`}
+      className={`relative flex h-screen flex-col overflow-hidden transition-colors duration-300 ${isDark ? "bg-gray-900 text-white" : "bg-white text-black"}`}
     >
+      {showLoadingOverlay && (
+        <div className="absolute inset-0 z-50">
+          <LoadingScreen
+            connectionState={connectionState}
+            error={connectionError}
+            isDark={isDark}
+          />
+        </div>
+      )}
+
       <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
         <aside className="h-14 w-full flex-none overflow-y-auto border-b md:h-full md:w-80 md:border-r md:border-b-0">
           <Sidebar
@@ -105,6 +131,8 @@ export function App() {
             onUsersChange={setUsers}
             onRenameUser={handleRenameUser}
             onLanguageChange={setLanguageId}
+            onConnectionStateChange={handleConnectionStateChange}
+            onError={handleError}
             renameUserRef={renameUserRef}
           />
         </main>

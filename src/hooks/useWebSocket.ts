@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   Char,
   CRDTEngine,
@@ -23,6 +23,13 @@ export type AnySnapshot = CRDTSnapshotData;
 export type InsertPayload = RemoteInsertOp | YjsOperation;
 export type DeletePayload = Char | YjsOperation;
 
+export type ConnectionState = "connecting" | "connected" | "disconnected";
+
+export interface ServerError {
+  code: string;
+  message: string;
+}
+
 export type WebSocketMessage =
   | {
       type: "init";
@@ -43,7 +50,13 @@ export type WebSocketMessage =
       type: "cursor-update";
       payload: { userId: string; cursor: CursorPosition };
     }
-  | { type: "client-cursor"; payload: CursorPosition };
+  | { type: "client-cursor"; payload: CursorPosition }
+  | { type: "error"; payload: ServerError };
+
+function getWebSocketUrl(docId: string, userId: string, username: string) {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/ws?docId=${docId}&userId=${userId}&username=${encodeURIComponent(username)}`;
+}
 
 export function useWebSocket(
   docId: string,
@@ -51,39 +64,66 @@ export function useWebSocket(
   username: string,
   onmessage?: (msg: WebSocketMessage) => void,
 ) {
-  const [isConnected, setIsConnected] = useState(false);
-  const socketRef = useRef<WebSocket | null>(null);
+  const [connectionState, setConnectionState] =
+    useState<ConnectionState>("connecting");
+  const [error, setError] = useState<ServerError | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const retriesRef = useRef(0);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onmessageRef = useRef(onmessage);
   onmessageRef.current = onmessage;
 
   useEffect(() => {
-    const host = window.location.host;
-    const ws = new WebSocket(
-      `ws://${host}/ws?docId=${docId}&userId=${userId}&username=${encodeURIComponent(username)}`,
-    );
-    socketRef.current = ws;
+    let unmounted = false;
 
-    ws.onopen = () => setIsConnected(true);
-    ws.onclose = () => setIsConnected(false);
-    ws.onmessage = (event) => {
-      try {
-        onmessageRef.current?.(JSON.parse(event.data));
-      } catch (error) {
-        console.error("Error parsing message:", error);
-      }
+    const connect = () => {
+      if (unmounted) return;
+      setConnectionState("connecting");
+
+      const ws = new WebSocket(getWebSocketUrl(docId, userId, username));
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        retriesRef.current = 0;
+        setConnectionState("connected");
+      };
+
+      ws.onclose = (e) => {
+        if (unmounted) return;
+        setConnectionState("disconnected");
+        if (wsRef.current) wsRef.current.close();
+        wsRef.current = null;
+
+        if (e.code === 1008) return;
+
+        if (retriesRef.current < 5) {
+          const delay = 1000 * Math.pow(2, retriesRef.current++);
+          timeoutRef.current = setTimeout(connect, delay);
+        }
+      };
+
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data) as WebSocketMessage;
+        if (msg.type === "error") setError(msg.payload);
+        onmessageRef.current?.(msg);
+      };
     };
 
+    connect();
+
     return () => {
-      ws.close();
-      socketRef.current = null;
+      unmounted = true;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      wsRef.current?.close();
+      wsRef.current = null;
     };
   }, [docId, userId, username]);
 
-  const sendMessage = (message: WebSocketMessage) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify(message));
+  const sendMessage = useCallback((message: WebSocketMessage) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(message));
     }
-  };
+  }, []);
 
-  return [isConnected, sendMessage] as const;
+  return { connectionState, error, sendMessage };
 }

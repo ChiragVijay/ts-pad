@@ -1,5 +1,5 @@
 import type { ServerWebSocket } from "bun";
-import { docManager } from "server/documentManager";
+import { docManager, DocumentLimitError } from "server/documentManager";
 
 export type WebSocketData = {
   documentId: string;
@@ -15,16 +15,16 @@ export interface WebSocketMessage {
 export const websocketHandlers = {
   open(ws: ServerWebSocket<WebSocketData>) {
     const { documentId, userId, username } = ws.data;
-    ws.subscribe(documentId);
-
-    const state = docManager.getDocumentState(documentId);
-    const user = { id: userId, name: username };
-
-    state.addUser(user);
-
-    const userWithColor = state.getUser(userId)!;
 
     try {
+      const state = docManager.getDocumentState(documentId);
+      ws.subscribe(documentId);
+
+      const user = { id: userId, name: username };
+      state.addUser(user);
+
+      const userWithColor = state.getUser(userId)!;
+
       ws.send(
         JSON.stringify({
           type: "init",
@@ -34,20 +34,31 @@ export const websocketHandlers = {
           crdtEngine: state.getCRDTEngine(),
         }),
       );
-    } catch (error) {
-      console.error(
-        `Error sending init message to user ${userId} for doc ${documentId}:`,
-        error,
-      );
-    }
 
-    ws.publish(
-      documentId,
-      JSON.stringify({
-        type: "user-join",
-        payload: userWithColor,
-      }),
-    );
+      ws.publish(
+        documentId,
+        JSON.stringify({
+          type: "user-join",
+          payload: userWithColor,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof DocumentLimitError) {
+        ws.send(
+          JSON.stringify({
+            type: "error",
+            payload: { code: "DOCUMENT_LIMIT", message: error.message },
+          }),
+        );
+        ws.close(1008, "Document limit reached");
+      } else {
+        console.error(
+          `Error in WebSocket open for user ${userId} doc ${documentId}:`,
+          error,
+        );
+        ws.close(1011, "Internal error");
+      }
+    }
   },
 
   message(ws: ServerWebSocket<WebSocketData>, message: string) {
@@ -104,20 +115,22 @@ export const websocketHandlers = {
     }
   },
 
-  close(ws: ServerWebSocket<WebSocketData>, code: number, message: string) {
+  close(ws: ServerWebSocket<WebSocketData>, _code: number, _message: string) {
     const { documentId, userId } = ws.data;
-    const state = docManager.getDocumentState(documentId);
 
-    state.removeUser(userId);
+    try {
+      const state = docManager.getDocumentState(documentId);
+      state.removeUser(userId);
 
-    ws.publish(
-      documentId,
-      JSON.stringify({
-        type: "user-leave",
-        payload: { id: userId },
-      }),
-    );
+      ws.publish(
+        documentId,
+        JSON.stringify({
+          type: "user-leave",
+          payload: { id: userId },
+        }),
+      );
 
-    ws.unsubscribe(documentId);
+      ws.unsubscribe(documentId);
+    } catch {}
   },
 };

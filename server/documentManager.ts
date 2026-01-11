@@ -1,5 +1,5 @@
 import { getUserColor } from "../src/utils/colors";
-import { CRDT } from "./crdt";
+import { createCRDT, getCRDTEngine, type CRDTAdapter } from "./crdt";
 
 export interface CursorPosition {
   lineNumber: number;
@@ -14,12 +14,12 @@ export interface User {
 }
 
 class DocumentState {
-  crdt: CRDT;
+  crdt: CRDTAdapter;
   users: Map<string, User> = new Map();
   language: string = "typescript";
 
   constructor() {
-    this.crdt = new CRDT("server");
+    this.crdt = createCRDT("server");
   }
 
   setLanguage(language: string) {
@@ -56,6 +56,10 @@ class DocumentState {
   getUserList(): User[] {
     return Array.from(this.users.values());
   }
+
+  getCRDTEngine(): "custom" | "yjs" {
+    return this.crdt.engineType;
+  }
 }
 
 class DocumentManager {
@@ -74,6 +78,10 @@ class DocumentManager {
       this.documents.set(docId, state);
     }
     return state;
+  }
+
+  getCRDTEngine(): "custom" | "yjs" {
+    return getCRDTEngine();
   }
 }
 

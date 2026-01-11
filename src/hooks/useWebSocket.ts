@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import type { Char, CRDTSnapshot, RemoteInsertOp } from "server/crdt";
+import type {
+  Char,
+  CRDTEngine,
+  CRDTSnapshotData,
+  RemoteInsertOp,
+  YjsOperation,
+} from "server/crdt/types";
 
 export interface CursorPosition {
   lineNumber: number;
@@ -13,20 +19,23 @@ export interface User {
   cursor?: CursorPosition;
 }
 
+export type AnySnapshot = CRDTSnapshotData;
+export type InsertPayload = RemoteInsertOp | YjsOperation;
+export type DeletePayload = Char | YjsOperation;
+
 export type WebSocketMessage =
   | {
       type: "init";
-      payload: CRDTSnapshot;
+      payload: AnySnapshot;
       users: User[];
       language: string;
+      crdtEngine: CRDTEngine;
     }
-  | { type: "update"; payload: string }
-  | { type: "crdt-insert"; payload: RemoteInsertOp }
-  | { type: "crdt-delete"; payload: Char }
+  | { type: "crdt-insert"; payload: InsertPayload }
+  | { type: "crdt-delete"; payload: DeletePayload }
   | { type: "user-join"; payload: User }
   | { type: "user-leave"; payload: { id: string } }
   | { type: "user-rename"; payload: User }
-  | { type: "client-join"; payload: User }
   | { type: "client-rename"; payload: Pick<User, "id" | "name"> }
   | { type: "language-change"; payload: { language: string } }
   | { type: "client-language"; payload: { language: string } }
@@ -49,27 +58,26 @@ export function useWebSocket(
 
   useEffect(() => {
     const host = window.location.host;
-    const url = `ws://${host}/ws?docId=${docId}&userId=${userId}&username=${encodeURIComponent(username)}`;
-    const ws = new WebSocket(url);
+    const ws = new WebSocket(
+      `ws://${host}/ws?docId=${docId}&userId=${userId}&username=${encodeURIComponent(username)}`,
+    );
     socketRef.current = ws;
 
     ws.onopen = () => setIsConnected(true);
-
     ws.onclose = () => setIsConnected(false);
-
     ws.onmessage = (event) => {
       try {
-        const message = JSON.parse(event.data) as WebSocketMessage;
-        onmessageRef.current?.(message);
+        onmessageRef.current?.(JSON.parse(event.data));
       } catch (error) {
         console.error("Error parsing message:", error);
       }
     };
+
     return () => {
       ws.close();
       socketRef.current = null;
     };
-  }, [docId, userId]);
+  }, [docId, userId, username]);
 
   const sendMessage = (message: WebSocketMessage) => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {

@@ -1,4 +1,3 @@
-import type { WebSocketMessage } from "@/hooks/useWebSocket";
 import type { ServerWebSocket } from "bun";
 import { docManager } from "server/documentManager";
 
@@ -7,6 +6,11 @@ export type WebSocketData = {
   userId: string;
   username: string;
 };
+
+export interface WebSocketMessage {
+  type: string;
+  payload: any;
+}
 
 export const websocketHandlers = {
   open(ws: ServerWebSocket<WebSocketData>) {
@@ -27,6 +31,7 @@ export const websocketHandlers = {
           payload: state.crdt.getSnapshot(),
           users: state.getUserList(),
           language: state.language,
+          crdtEngine: state.getCRDTEngine(),
         }),
       );
     } catch (error) {
@@ -57,7 +62,7 @@ export const websocketHandlers = {
         break;
 
       case "crdt-delete":
-        state.crdt.remoteDelete(msg.payload.id);
+        state.crdt.remoteDelete(msg.payload);
         ws.publish(documentId, message);
         break;
 

@@ -1,11 +1,19 @@
 import { useCallback, useRef, useState } from "react";
-import { CRDT } from "../../server/crdt";
+import { CustomCRDTAdapter } from "server/crdt/custom";
+import type { CRDTAdapter, CRDTEngine } from "server/crdt/types";
+import { YjsCRDTAdapter } from "server/crdt/yjs";
 import {
   useWebSocket,
   type CursorPosition,
   type User,
   type WebSocketMessage,
 } from "./useWebSocket";
+
+function createCRDT(siteId: string, engine: CRDTEngine): CRDTAdapter {
+  return engine === "yjs"
+    ? new YjsCRDTAdapter(siteId)
+    : new CustomCRDTAdapter(siteId);
+}
 
 export function useSync(
   docId: string,
@@ -15,30 +23,55 @@ export function useSync(
   onInit?: () => void,
   onLanguageChange?: (language: string) => void,
 ) {
-  const crdt = useRef(new CRDT(userId)).current;
+  const crdtRef = useRef<CRDTAdapter | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const messageBuffer = useRef<WebSocketMessage[]>([]);
+  const isInitializedRef = useRef(false);
   const lastCursorSent = useRef<CursorPosition | null>(null);
   const cursorThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleMessage = useCallback(
+  const processMessage = useCallback(
     (msg: WebSocketMessage) => {
       switch (msg.type) {
-        case "init":
-          crdt.applySnapshot(msg.payload);
+        case "init": {
+          const adapter = createCRDT(userId, msg.crdtEngine);
+          adapter.applySnapshot(msg.payload);
+          crdtRef.current = adapter;
           setUsers(msg.users);
           setIsInitialized(true);
+          isInitializedRef.current = true;
           onLanguageChange?.(msg.language);
           onInit?.();
+
+          const buffered = messageBuffer.current;
+          messageBuffer.current = [];
+          buffered.forEach((bMsg) => processMessage(bMsg));
           break;
-        case "crdt-insert":
-          crdt.remoteInsert(msg.payload);
-          onRemoteChange?.("insert", msg.payload);
+        }
+        case "crdt-insert": {
+          const crdt = crdtRef.current;
+          if (!crdt) return;
+          const result = crdt.remoteInsert(msg.payload);
+          if (result) {
+            onRemoteChange?.("insert", {
+              ...msg.payload,
+              visibleIndex: result.visibleIndex,
+              value: result.value,
+            });
+          }
           break;
+        }
         case "crdt-delete": {
-          const visibleIndex = crdt.getVisibleIndex(msg.payload.id);
-          crdt.remoteDelete(msg.payload.id);
-          onRemoteChange?.("delete", { ...msg.payload, visibleIndex });
+          const crdt = crdtRef.current;
+          if (!crdt) return;
+          const result = crdt.remoteDelete(msg.payload);
+          if (result) {
+            onRemoteChange?.("delete", {
+              ...msg.payload,
+              visibleIndex: result.visibleIndex,
+            });
+          }
           break;
         }
         case "user-join":
@@ -66,11 +99,20 @@ export function useSync(
         case "language-change":
           onLanguageChange?.(msg.payload.language);
           break;
-        default:
-          break;
       }
     },
-    [onRemoteChange, onInit, onLanguageChange],
+    [userId, onRemoteChange, onInit, onLanguageChange],
+  );
+
+  const handleMessage = useCallback(
+    (msg: WebSocketMessage) => {
+      if (!isInitializedRef.current && msg.type !== "init") {
+        messageBuffer.current.push(msg);
+        return;
+      }
+      processMessage(msg);
+    },
+    [processMessage],
   );
 
   const [isConnected, sendMessage] = useWebSocket(
@@ -82,17 +124,21 @@ export function useSync(
 
   const applyLocalInsert = useCallback(
     (value: string, index: number) => {
-      const op = crdt.localInsert(value, index);
-      sendMessage({ type: "crdt-insert", payload: op });
+      const crdt = crdtRef.current;
+      if (!crdt) return;
+      const result = crdt.localInsert(value, index);
+      sendMessage({ type: "crdt-insert", payload: result.operation as any });
     },
     [sendMessage],
   );
 
   const applyLocalDelete = useCallback(
     (index: number) => {
-      const char = crdt.localDelete(index);
-      if (char) {
-        sendMessage({ type: "crdt-delete", payload: char });
+      const crdt = crdtRef.current;
+      if (!crdt) return;
+      const result = crdt.localDelete(index);
+      if (result) {
+        sendMessage({ type: "crdt-delete", payload: result.operation as any });
       }
     },
     [sendMessage],
@@ -110,10 +156,7 @@ export function useSync(
 
   const changeLanguage = useCallback(
     (language: string) => {
-      sendMessage({
-        type: "client-language",
-        payload: { language },
-      });
+      sendMessage({ type: "client-language", payload: { language } });
     },
     [sendMessage],
   );
@@ -126,17 +169,10 @@ export function useSync(
       ) {
         return;
       }
-
-      if (cursorThrottleRef.current) {
-        return;
-      }
+      if (cursorThrottleRef.current) return;
 
       lastCursorSent.current = cursor;
-      sendMessage({
-        type: "client-cursor",
-        payload: cursor,
-      });
-
+      sendMessage({ type: "client-cursor", payload: cursor });
       cursorThrottleRef.current = setTimeout(() => {
         cursorThrottleRef.current = null;
       }, 50);
@@ -145,7 +181,7 @@ export function useSync(
   );
 
   return {
-    crdt,
+    crdt: crdtRef.current,
     isConnected,
     isInitialized,
     users,

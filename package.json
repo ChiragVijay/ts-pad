@@ -15,7 +15,8 @@
     "monaco-editor": "^0.55.1",
     "react": "^19",
     "react-dom": "^19",
-    "tailwindcss": "^4.1.11"
+    "tailwindcss": "^4.1.11",
+    "yjs": "^13.6.29"
   },
   "devDependencies": {
     "@types/bun": "latest",

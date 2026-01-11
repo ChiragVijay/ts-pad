@@ -9,7 +9,7 @@ import {
   useState,
   type RefObject,
 } from "react";
-import type { Identifier, RemoteInsertOp } from "server/crdt";
+import type { CRDTAdapter } from "server/crdt/types";
 import { useSync } from "../hooks/useSync";
 import type { User } from "../hooks/useWebSocket";
 
@@ -23,6 +23,11 @@ interface EditorProps {
   onRenameUser: (newName: string) => void;
   onLanguageChange: (languageId: string) => void;
   renameUserRef: RefObject<((name: string) => void) | null>;
+}
+
+interface RemoteChangeData {
+  visibleIndex: number;
+  value?: string;
 }
 
 const Editor = ({
@@ -46,14 +51,14 @@ const Editor = ({
     return editorRef.current?.getModel();
   }, []);
 
-  const crdtRef = useRef<ReturnType<typeof useSync>["crdt"] | null>(null);
+  const crdtRef = useRef<CRDTAdapter | null>(null);
 
   const applyRemoteInsert = useCallback(
-    (payload: RemoteInsertOp) => {
+    (payload: RemoteChangeData) => {
       const model = getEditorModel();
       if (!model || !editorRef.current || !crdtRef.current) return;
 
-      const index = crdtRef.current.getVisibleIndex(payload.char.id);
+      const index = payload.visibleIndex;
       if (index === -1) return;
 
       const pos = model.getPositionAt(index);
@@ -65,7 +70,7 @@ const Editor = ({
             pos.lineNumber,
             pos.column,
           ),
-          text: payload.char.value,
+          text: payload.value || "",
           forceMoveMarkers: true,
         },
       ]);
@@ -74,7 +79,7 @@ const Editor = ({
   );
 
   const applyRemoteDelete = useCallback(
-    (payload: { id: Identifier; visibleIndex: number }) => {
+    (payload: RemoteChangeData) => {
       const model = getEditorModel();
       if (!model || !editorRef.current) return;
 

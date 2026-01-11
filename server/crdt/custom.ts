@@ -1,26 +1,20 @@
-export interface Identifier {
-  siteId: string;
-  counter: number;
-}
+import type {
+  Char,
+  CRDTAdapter,
+  CRDTDeleteData,
+  CRDTIdentifierData,
+  CRDTInsertData,
+  CRDTSnapshotData,
+  CustomCRDTSnapshot,
+  Identifier,
+  LocalDeleteResult,
+  LocalInsertResult,
+  RemoteDeleteResult,
+  RemoteInsertOp,
+  RemoteInsertResult,
+} from "./types";
 
-export interface Char {
-  id: Identifier;
-  value: string;
-  visible: boolean;
-}
-
-export interface RemoteInsertOp {
-  char: Char;
-  leftId: Identifier | null;
-}
-
-export interface CRDTSnapshot {
-  siteIds: string[];
-  chars: [number, number, string, number][];
-  counter: number;
-}
-
-export class CRDT {
+class CustomCRDTCore {
   private array: Char[] = [];
   private counter: number = 0;
   private siteId: string;
@@ -122,7 +116,7 @@ export class CRDT {
     this.counter = state.counter;
   }
 
-  getSnapshot(): CRDTSnapshot {
+  getSnapshot(): CustomCRDTSnapshot {
     const siteIdMap = new Map<string, number>();
     const siteIds: string[] = [];
 
@@ -147,7 +141,7 @@ export class CRDT {
     return { siteIds, chars, counter: this.counter };
   }
 
-  applySnapshot(snapshot: CRDTSnapshot) {
+  applySnapshot(snapshot: CustomCRDTSnapshot) {
     this.counter = snapshot.counter;
     this.array = snapshot.chars.map((c) => ({
       id: { siteId: snapshot.siteIds[c[0]], counter: c[1] },
@@ -156,3 +150,75 @@ export class CRDT {
     }));
   }
 }
+
+export class CustomCRDTAdapter implements CRDTAdapter {
+  private core: CustomCRDTCore;
+  readonly engineType = "custom" as const;
+
+  constructor(siteId: string) {
+    this.core = new CustomCRDTCore(siteId);
+  }
+
+  localInsert(value: string, index: number): LocalInsertResult {
+    const op = this.core.localInsert(value, index);
+    return {
+      operation: op,
+      visibleIndex: this.core.getVisibleIndex(op.char.id),
+    };
+  }
+
+  localDelete(index: number): LocalDeleteResult | null {
+    const char = this.core.localDelete(index);
+    if (!char) return null;
+    return {
+      operation: char,
+      visibleIndex: index,
+    };
+  }
+
+  remoteInsert(operation: CRDTInsertData): RemoteInsertResult | null {
+    const op = operation as RemoteInsertOp;
+    this.core.remoteInsert(op);
+    const visibleIndex = this.core.getVisibleIndex(op.char.id);
+    if (visibleIndex === -1) return null;
+    return {
+      visibleIndex,
+      value: op.char.value,
+    };
+  }
+
+  remoteDelete(operation: CRDTDeleteData): RemoteDeleteResult | null {
+    const char = operation as Char;
+    const visibleIndex = this.core.getVisibleIndex(char.id);
+    this.core.remoteDelete(char.id);
+    if (visibleIndex === -1) return null;
+    return { visibleIndex };
+  }
+
+  getVisibleIndex(id: CRDTIdentifierData): number {
+    return this.core.getVisibleIndex(id as Identifier);
+  }
+
+  toString(): string {
+    return this.core.toString();
+  }
+
+  getSnapshot(): CustomCRDTSnapshot {
+    return this.core.getSnapshot();
+  }
+
+  applySnapshot(snapshot: CRDTSnapshotData): void {
+    this.core.applySnapshot(snapshot as CustomCRDTSnapshot);
+  }
+
+  // Expose the core for backward compatibility with tests
+  getState() {
+    return this.core.getState();
+  }
+
+  setState(state: { array: Char[]; counter: number }) {
+    this.core.setState(state);
+  }
+}
+
+export { CustomCRDTCore as CRDT };

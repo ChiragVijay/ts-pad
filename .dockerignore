@@ -1,0 +1,32 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Test files
+tests
+*.test.ts
+coverage
+
+# Documentation
+*.md
+!README.md
+
+# Scripts
+scripts
+
+# Misc
+.DS_Store
+.env.local
+.env.*.local

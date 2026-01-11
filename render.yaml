@@ -6,6 +6,7 @@ services:
     runtime: docker
     plan: free
     healthCheckPath: /api/status
+    autoDeployTrigger: off
     envVars:
       - key: NODE_ENV
         value: production

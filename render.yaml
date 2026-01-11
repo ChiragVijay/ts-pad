@@ -1,0 +1,23 @@
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: ts-pad
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/status
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: CRDT_ENGINE
+        value: yjs
+      - key: MAX_DOCUMENTS
+        value: 50
+      - key: MAX_DOCUMENT_SIZE
+        value: 51200 # 50KB
+      - key: DOCUMENT_TTL_MS
+        value: 1800000 # 30 minutes
+      - key: CLEANUP_INTERVAL_MS
+        value: 300000 # 5 minutes

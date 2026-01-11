@@ -7,17 +7,14 @@ import {
   expect,
   test,
 } from "bun:test";
-import { CRDT } from "../../server/crdt";
 import type { WebSocketData } from "../../server/routes/ws";
-
-const TEST_PORT = 3098;
-const WS_URL = `ws://localhost:${TEST_PORT}/ws`;
 
 let server: Server<WebSocketData>;
 let clearDocuments: () => void;
+let wsUrl: string;
 
 function createTestServer() {
-  const { CRDT } = require("../../server/crdt");
+  const { createCRDT, getCRDTEngine } = require("../../server/crdt");
 
   interface User {
     id: string;
@@ -25,12 +22,12 @@ function createTestServer() {
   }
 
   class DocumentState {
-    crdt: InstanceType<typeof CRDT>;
+    crdt: any;
     users: Map<string, User> = new Map();
     language: string = "typescript";
 
     constructor() {
-      this.crdt = new CRDT("server");
+      this.crdt = createCRDT("server");
     }
 
     setLanguage(language: string) {
@@ -70,7 +67,7 @@ function createTestServer() {
 
   return {
     server: Bun.serve<WebSocketData>({
-      port: TEST_PORT,
+      port: 4002,
       fetch(req, server) {
         const url = new URL(req.url);
         const documentId = url.searchParams.get("docId");
@@ -95,9 +92,10 @@ function createTestServer() {
           ws.send(
             JSON.stringify({
               type: "init",
-              payload: state.crdt.getState(),
+              payload: state.crdt.getSnapshot(),
               users: state.getUserList(),
               language: state.language,
+              crdtEngine: getCRDTEngine(),
             }),
           );
 
@@ -118,7 +116,7 @@ function createTestServer() {
             state.crdt.remoteInsert(msg.payload);
             ws.publish(documentId, message as string);
           } else if (msg.type === "crdt-delete") {
-            state.crdt.remoteDelete(msg.payload.id);
+            state.crdt.remoteDelete(msg.payload);
             ws.publish(documentId, message as string);
           } else if (msg.type === "client-rename") {
             state.renameUser(userId, msg.payload.name);
@@ -157,7 +155,7 @@ function createTestServer() {
 
 interface SyncClient {
   ws: WebSocket;
-  crdt: CRDT;
+  crdt: any;
   messages: any[];
   userId: string;
   waitForMessage: (type: string, timeout?: number) => Promise<any>;
@@ -169,11 +167,12 @@ interface SyncClient {
 }
 
 function createSyncClient(docId: string, userId: string): Promise<SyncClient> {
+  const { createCRDT } = require("../../server/crdt");
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(
-      `${WS_URL}?docId=${docId}&userId=${userId}&username=${userId}`,
+      `${wsUrl}?docId=${docId}&userId=${userId}&username=${userId}`,
     );
-    const crdt = new CRDT(userId);
+    let crdt: any = null;
     const messages: any[] = [];
     const waiters: Map<string, { resolve: (msg: any) => void }[]> = new Map();
 
@@ -182,11 +181,12 @@ function createSyncClient(docId: string, userId: string): Promise<SyncClient> {
       messages.push(msg);
 
       if (msg.type === "init") {
-        crdt.setState(msg.payload);
+        crdt = createCRDT(userId);
+        crdt.applySnapshot(msg.payload);
       } else if (msg.type === "crdt-insert") {
-        crdt.remoteInsert(msg.payload);
+        crdt?.remoteInsert(msg.payload);
       } else if (msg.type === "crdt-delete") {
-        crdt.remoteDelete(msg.payload.id);
+        crdt?.remoteDelete(msg.payload);
       }
 
       const typeWaiters = waiters.get(msg.type);
@@ -200,7 +200,9 @@ function createSyncClient(docId: string, userId: string): Promise<SyncClient> {
     ws.onopen = () => {
       const client: SyncClient = {
         ws,
-        crdt,
+        get crdt() {
+          return crdt;
+        },
         messages,
         userId,
         waitForMessage(type: string, timeout = 2000) {
@@ -231,14 +233,19 @@ function createSyncClient(docId: string, userId: string): Promise<SyncClient> {
           ws.close();
         },
         insert(value: string, index: number) {
-          const op = crdt.localInsert(value, index);
-          ws.send(JSON.stringify({ type: "crdt-insert", payload: op }));
+          const result = crdt.localInsert(value, index);
+          ws.send(
+            JSON.stringify({ type: "crdt-insert", payload: result.operation }),
+          );
         },
         delete(index: number) {
-          const char = crdt.localDelete(index);
-          if (char) {
+          const result = crdt.localDelete(index);
+          if (result) {
             ws.send(
-              JSON.stringify({ type: "crdt-delete", payload: { id: char.id } }),
+              JSON.stringify({
+                type: "crdt-delete",
+                payload: result.operation,
+              }),
             );
           }
         },
@@ -255,6 +262,7 @@ beforeAll(() => {
   const testServer = createTestServer();
   server = testServer.server;
   clearDocuments = testServer.clearDocuments;
+  wsUrl = `ws://localhost:${server.port}/ws`;
 });
 
 afterAll(() => {

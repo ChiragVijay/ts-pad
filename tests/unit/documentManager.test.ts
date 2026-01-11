@@ -67,27 +67,27 @@ describe("DocumentState", () => {
     test("adds user", () => {
       const state = new DocumentState();
 
-      state.addUser({ id: "user1", name: "Alice" });
+      state.addUser({ id: "user1", name: "Alice", color: "#ff0000" });
 
       const users = state.getUserList();
       expect(users.length).toBe(1);
-      expect(users[0]).toEqual({ id: "user1", name: "Alice" });
+      expect(users[0]).toEqual({ id: "user1", name: "Alice", color: "#ff0000" });
     });
 
     test("adds multiple users", () => {
       const state = new DocumentState();
 
-      state.addUser({ id: "user1", name: "Alice" });
-      state.addUser({ id: "user2", name: "Bob" });
-      state.addUser({ id: "user3", name: "Charlie" });
+      state.addUser({ id: "user1", name: "Alice", color: "#ff0000" });
+      state.addUser({ id: "user2", name: "Bob", color: "#00ff00" });
+      state.addUser({ id: "user3", name: "Charlie", color: "#0000ff" });
 
       expect(state.getUserList().length).toBe(3);
     });
 
     test("removes user", () => {
       const state = new DocumentState();
-      state.addUser({ id: "user1", name: "Alice" });
-      state.addUser({ id: "user2", name: "Bob" });
+      state.addUser({ id: "user1", name: "Alice", color: "#ff0000" });
+      state.addUser({ id: "user2", name: "Bob", color: "#00ff00" });
 
       state.removeUser("user1");
 
@@ -98,7 +98,7 @@ describe("DocumentState", () => {
 
     test("removing non-existent user is safe", () => {
       const state = new DocumentState();
-      state.addUser({ id: "user1", name: "Alice" });
+      state.addUser({ id: "user1", name: "Alice", color: "#ff0000" });
 
       state.removeUser("nonexistent");
 
@@ -107,7 +107,7 @@ describe("DocumentState", () => {
 
     test("renames user", () => {
       const state = new DocumentState();
-      state.addUser({ id: "user1", name: "Alice" });
+      state.addUser({ id: "user1", name: "Alice", color: "#ff0000" });
 
       state.renameUser("user1", "Alicia");
 
@@ -117,7 +117,7 @@ describe("DocumentState", () => {
 
     test("renaming non-existent user is safe", () => {
       const state = new DocumentState();
-      state.addUser({ id: "user1", name: "Alice" });
+      state.addUser({ id: "user1", name: "Alice", color: "#ff0000" });
 
       state.renameUser("nonexistent", "NewName");
 
@@ -126,8 +126,8 @@ describe("DocumentState", () => {
 
     test("overwrites user with same id", () => {
       const state = new DocumentState();
-      state.addUser({ id: "user1", name: "Alice" });
-      state.addUser({ id: "user1", name: "Alicia" });
+      state.addUser({ id: "user1", name: "Alice", color: "#ff0000" });
+      state.addUser({ id: "user1", name: "Alicia", color: "#ff0000" });
 
       const users = state.getUserList();
       expect(users.length).toBe(1);
@@ -187,7 +187,7 @@ describe("DocumentManager", () => {
     const state1 = manager.getDocumentState("doc1");
     const state2 = manager.getDocumentState("doc2");
 
-    state1.addUser({ id: "user1", name: "Alice" });
+    state1.addUser({ id: "user1", name: "Alice", color: "#ff0000" });
     state1.setLanguage("python");
     state1.crdt.localInsert("A", 0);
 
@@ -199,7 +199,7 @@ describe("DocumentManager", () => {
   test("createDocumentState is idempotent", () => {
     manager.createDocumentState("doc1");
     const state1 = manager.getDocumentState("doc1");
-    state1.addUser({ id: "user1", name: "Alice" });
+    state1.addUser({ id: "user1", name: "Alice", color: "#ff0000" });
 
     manager.createDocumentState("doc1");
     const state2 = manager.getDocumentState("doc1");
@@ -212,7 +212,7 @@ describe("DocumentManager", () => {
 
     for (let i = 0; i < docCount; i++) {
       const state = manager.getDocumentState(`doc-${i}`);
-      state.addUser({ id: `user-${i}`, name: `User ${i}` });
+      state.addUser({ id: `user-${i}`, name: `User ${i}`, color: "#ff0000" });
     }
 
     for (let i = 0; i < docCount; i++) {

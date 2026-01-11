@@ -9,13 +9,11 @@ import {
 } from "bun:test";
 import type { WebSocketData } from "../../server/routes/ws";
 
-const TEST_PORT = 3099;
-const WS_URL = `ws://localhost:${TEST_PORT}/ws`;
-
 let server: Server<WebSocketData>;
+let wsUrl: string;
 
 function createTestServer() {
-  const { CRDT } = require("../../server/crdt");
+  const { createCRDT, getCRDTEngine } = require("../../server/crdt");
 
   interface User {
     id: string;
@@ -23,12 +21,12 @@ function createTestServer() {
   }
 
   class DocumentState {
-    crdt: InstanceType<typeof CRDT>;
+    crdt: any;
     users: Map<string, User> = new Map();
     language: string = "typescript";
 
     constructor() {
-      this.crdt = new CRDT("server");
+      this.crdt = createCRDT("server");
     }
 
     setLanguage(language: string) {
@@ -70,7 +68,7 @@ function createTestServer() {
 
   return {
     server: Bun.serve<WebSocketData>({
-      port: TEST_PORT,
+      port: 4001,
       fetch(req, server) {
         const url = new URL(req.url);
         const documentId = url.searchParams.get("docId");
@@ -95,9 +93,10 @@ function createTestServer() {
           ws.send(
             JSON.stringify({
               type: "init",
-              payload: state.crdt.getState(),
+              payload: state.crdt.getSnapshot(),
               users: state.getUserList(),
               language: state.language,
+              crdtEngine: getCRDTEngine(),
             }),
           );
 
@@ -118,7 +117,7 @@ function createTestServer() {
             state.crdt.remoteInsert(msg.payload);
             ws.publish(documentId, message as string);
           } else if (msg.type === "crdt-delete") {
-            state.crdt.remoteDelete(msg.payload.id);
+            state.crdt.remoteDelete(msg.payload);
             ws.publish(documentId, message as string);
           } else if (msg.type === "client-rename") {
             state.renameUser(userId, msg.payload.name);
@@ -170,7 +169,7 @@ function createClient(
 ): Promise<TestClient> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(
-      `${WS_URL}?docId=${docId}&userId=${userId}&username=${username}`,
+      `${wsUrl}?docId=${docId}&userId=${userId}&username=${username}`,
     );
     const messages: any[] = [];
     const waiters: Map<
@@ -233,6 +232,7 @@ let testServer: ReturnType<typeof createTestServer>;
 beforeAll(() => {
   testServer = createTestServer();
   server = testServer.server;
+  wsUrl = `ws://localhost:${server.port}/ws`;
 });
 
 afterAll(() => {
@@ -269,7 +269,7 @@ describe("WebSocket Integration", () => {
     });
 
     test("rejects connection without docId", async () => {
-      const ws = new WebSocket(`${WS_URL}?userId=user1`);
+      const ws = new WebSocket(`${wsUrl}?userId=user1`);
 
       await new Promise<void>((resolve) => {
         ws.onerror = () => resolve();
@@ -281,7 +281,7 @@ describe("WebSocket Integration", () => {
     });
 
     test("rejects connection without userId", async () => {
-      const ws = new WebSocket(`${WS_URL}?docId=doc1`);
+      const ws = new WebSocket(`${wsUrl}?docId=doc1`);
 
       await new Promise<void>((resolve) => {
         ws.onerror = () => resolve();
@@ -345,81 +345,79 @@ describe("WebSocket Integration", () => {
 
   describe("CRDT operations", () => {
     test("crdt-insert is broadcast to other clients", async () => {
+      const { createCRDT } = require("../../server/crdt");
       const client1 = await createClient("doc1", "user1");
       await client1.waitForMessage("init");
 
       const client2 = await createClient("doc1", "user2");
       await client2.waitForMessage("init");
 
+      const adapter = createCRDT("user1");
+      const result = adapter.localInsert("A", 0);
+
       const insertOp = {
         type: "crdt-insert",
-        payload: {
-          char: {
-            id: { siteId: "user1", counter: 0 },
-            value: "A",
-            visible: true,
-          },
-          leftId: null,
-        },
+        payload: result.operation,
       };
 
       client1.send(insertOp);
 
       const received = await client2.waitForMessage("crdt-insert");
-      expect(received.payload.char.value).toBe("A");
+      // Use adapter to verify if we can
+      const adapter2 = createCRDT("user2");
+      adapter2.remoteInsert(received.payload);
+      expect(adapter2.toString()).toBe("A");
 
       client1.close();
       client2.close();
     });
 
     test("crdt-delete is broadcast to other clients", async () => {
+      const { createCRDT } = require("../../server/crdt");
       const client1 = await createClient("doc1", "user1");
       await client1.waitForMessage("init");
 
       const client2 = await createClient("doc1", "user2");
       await client2.waitForMessage("init");
 
-      const insertOp = {
+      const adapter = createCRDT("user1");
+      const insertResult = adapter.localInsert("A", 0);
+
+      client1.send({
         type: "crdt-insert",
-        payload: {
-          char: {
-            id: { siteId: "user1", counter: 0 },
-            value: "A",
-            visible: true,
-          },
-          leftId: null,
-        },
-      };
-      client1.send(insertOp);
+        payload: insertResult.operation,
+      });
       await client2.waitForMessage("crdt-insert");
 
+      const deleteResult = adapter.localDelete(0);
       const deleteOp = {
         type: "crdt-delete",
-        payload: { id: { siteId: "user1", counter: 0 } },
+        payload: deleteResult!.operation,
       };
       client1.send(deleteOp);
 
       const received = await client2.waitForMessage("crdt-delete");
-      expect(received.payload.id).toEqual({ siteId: "user1", counter: 0 });
+
+      const adapter2 = createCRDT("user2");
+      adapter2.remoteInsert(insertResult.operation);
+      adapter2.remoteDelete(received.payload);
+      expect(adapter2.toString()).toBe("");
 
       client1.close();
       client2.close();
     });
 
     test("server persists CRDT state for new clients", async () => {
+      const { createCRDT } = require("../../server/crdt");
       const client1 = await createClient("doc1", "user1");
       await client1.waitForMessage("init");
 
+      const adapter = createCRDT("user1");
+      const result = adapter.localInsert("X", 0);
+
       client1.send({
         type: "crdt-insert",
-        payload: {
-          char: {
-            id: { siteId: "user1", counter: 0 },
-            value: "X",
-            visible: true,
-          },
-          leftId: null,
-        },
+        payload: result.operation,
       });
 
       await Bun.sleep(50);
@@ -429,8 +427,9 @@ describe("WebSocket Integration", () => {
       const client2 = await createClient("doc1", "user2");
       const init = await client2.waitForMessage("init");
 
-      expect(init.payload.array.length).toBe(1);
-      expect(init.payload.array[0].value).toBe("X");
+      const adapter2 = createCRDT("user2");
+      adapter2.applySnapshot(init.payload);
+      expect(adapter2.toString()).toBe("X");
 
       client2.close();
     });
@@ -475,22 +474,19 @@ describe("WebSocket Integration", () => {
 
   describe("document isolation", () => {
     test("operations in one document dont affect another", async () => {
+      const { createCRDT } = require("../../server/crdt");
       const clientA1 = await createClient("docA", "userA1");
       await clientA1.waitForMessage("init");
 
       const clientB1 = await createClient("docB", "userB1");
       await clientB1.waitForMessage("init");
 
+      const adapter = createCRDT("userA1");
+      const result = adapter.localInsert("A", 0);
+
       clientA1.send({
         type: "crdt-insert",
-        payload: {
-          char: {
-            id: { siteId: "userA1", counter: 0 },
-            value: "A",
-            visible: true,
-          },
-          leftId: null,
-        },
+        payload: result.operation,
       });
 
       await Bun.sleep(100);

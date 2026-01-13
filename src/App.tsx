@@ -49,6 +49,7 @@ export function App() {
   const [connectionError, setConnectionError] = useState<ServerError | null>(
     null,
   );
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const renameUserRef = useRef<((name: string) => void) | null>(null);
 
   const handleConnectionStateChange = useCallback((state: ConnectionState) => {
@@ -108,7 +109,9 @@ export function App() {
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
-        <aside className="h-14 w-full flex-none overflow-y-auto border-b md:h-full md:w-80 md:border-r md:border-b-0">
+        <aside
+          className={`w-full flex-none overflow-y-auto border-b md:h-full md:w-80 md:border-r md:border-b-0 ${isMobileMenuOpen ? "h-full" : "h-14"}`}
+        >
           <Sidebar
             theme={currentTheme}
             setThemeId={setThemeId}
@@ -118,6 +121,8 @@ export function App() {
             currentUserId={userId}
             onRenameUser={handleRenameUser}
             docId={docId}
+            isMobileMenuOpen={isMobileMenuOpen}
+            onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           />
         </aside>
 

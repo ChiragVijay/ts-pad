@@ -7,6 +7,38 @@ import type { ConnectionState, ServerError, User } from "./hooks/useWebSocket";
 import { APP_LANGUAGES } from "./languages";
 import { APP_THEMES } from "./themes";
 
+const MenuIcon = () => (
+  <svg
+    className="h-5 w-5"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M4 6h16M4 12h16M4 18h16"
+    />
+  </svg>
+);
+
+const CloseIcon = () => (
+  <svg
+    className="h-5 w-5"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M6 18L18 6M6 6l12 12"
+    />
+  </svg>
+);
+
 function generateId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
@@ -49,6 +81,7 @@ export function App() {
   const [connectionError, setConnectionError] = useState<ServerError | null>(
     null,
   );
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const renameUserRef = useRef<((name: string) => void) | null>(null);
 
   const handleConnectionStateChange = useCallback((state: ConnectionState) => {
@@ -107,8 +140,37 @@ export function App() {
         </div>
       )}
 
-      <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
-        <aside className="h-14 w-full flex-none overflow-y-auto border-b md:h-full md:w-80 md:border-r md:border-b-0">
+      <header
+        className={`flex h-12 flex-none items-center justify-between border-b px-4 md:hidden ${
+          isDark ? "border-gray-800 bg-gray-900" : "border-gray-200 bg-white"
+        }`}
+      >
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className={`rounded-lg p-2 transition-colors ${
+            isDark ? "hover:bg-gray-800" : "hover:bg-gray-100"
+          }`}
+          aria-label={sidebarOpen ? "Close menu" : "Open menu"}
+        >
+          {sidebarOpen ? <CloseIcon /> : <MenuIcon />}
+        </button>
+        <h1 className="text-lg font-bold tracking-tight">TS Pad</h1>
+      </header>
+
+      <div className="relative flex flex-1 overflow-hidden">
+        {/* Mobile Overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/50 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        <aside
+          className={`absolute inset-y-0 left-0 z-40 w-72 transform overflow-y-auto border-r transition-transform duration-200 ease-in-out md:relative md:z-0 md:w-72 md:translate-x-0 md:transition-none lg:w-80 ${
+            isDark ? "border-gray-800 bg-gray-900" : "border-gray-200 bg-white"
+          } ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+        >
           <Sidebar
             theme={currentTheme}
             setThemeId={setThemeId}
@@ -118,6 +180,7 @@ export function App() {
             currentUserId={userId}
             onRenameUser={handleRenameUser}
             docId={docId}
+            onClose={() => setSidebarOpen(false)}
           />
         </aside>
 

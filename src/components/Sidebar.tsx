@@ -14,6 +14,7 @@ interface SidebarProps {
   currentUserId: string;
   onRenameUser: (newName: string) => void;
   docId: string;
+  onClose?: () => void;
 }
 
 const Sidebar = ({
@@ -25,6 +26,7 @@ const Sidebar = ({
   currentUserId,
   onRenameUser,
   docId,
+  onClose,
 }: SidebarProps) => {
   const isDark = theme.type === "dark";
   const [editingName, setEditingName] = useState(false);
@@ -72,15 +74,15 @@ const Sidebar = ({
   };
 
   return (
-    <div className="flex h-full flex-row items-center justify-between px-4 md:flex-col md:items-stretch md:p-4">
+    <div className="flex h-full flex-col p-4">
       <div
         className={`mb-4 hidden border-b pb-4 md:block ${isDark ? "border-gray-800" : "border-gray-200"}`}
       >
-        <h1 className="text-center text-xl font-bold tracking-tight">TS Pad</h1>
+        <h1 className="text-xl font-bold tracking-tight">TS Pad</h1>
       </div>
 
       <div
-        className={`mb-4 hidden border-b pb-4 md:block ${isDark ? "border-gray-800" : "border-gray-200"}`}
+        className={`mb-4 border-b pb-4 ${isDark ? "border-gray-800" : "border-gray-200"}`}
       >
         <label className="mb-2 block text-[10px] font-bold tracking-widest text-gray-500 uppercase">
           Connected ({users.length})
@@ -139,7 +141,7 @@ const Sidebar = ({
       </div>
 
       <div
-        className={`mb-4 hidden border-b pb-4 md:block ${isDark ? "border-gray-800" : "border-gray-200"}`}
+        className={`mb-4 border-b pb-4 ${isDark ? "border-gray-800" : "border-gray-200"}`}
       >
         <button
           onClick={handleCopyLink}
@@ -153,19 +155,22 @@ const Sidebar = ({
         </button>
       </div>
 
-      <div className="flex flex-row items-center gap-3 md:flex-col md:items-stretch md:gap-4">
-        <div className="flex items-center gap-2 md:flex-col md:items-stretch">
-          <label className="hidden text-[10px] font-bold tracking-widest text-gray-500 uppercase lg:block">
+      <div className="space-y-4">
+        <div>
+          <label className="mb-2 block text-[10px] font-bold tracking-widest text-gray-500 uppercase">
             Theme
           </label>
           <select
-            className={`rounded-md border px-2 py-1 text-xs transition-all outline-none md:px-3 md:py-2 md:text-sm ${
+            className={`w-full rounded-md border px-3 py-2 text-sm transition-all outline-none ${
               isDark
                 ? "border-gray-700 bg-gray-800 text-white focus:border-blue-500"
                 : "border-gray-300 bg-white text-black focus:border-blue-500"
             }`}
             value={theme.id}
-            onChange={(e) => setThemeId(e.target.value)}
+            onChange={(e) => {
+              setThemeId(e.target.value);
+              onClose?.();
+            }}
           >
             {APP_THEMES.map((t) => (
               <option key={t.id} value={t.id}>
@@ -175,18 +180,21 @@ const Sidebar = ({
           </select>
         </div>
 
-        <div className="flex items-center gap-2 md:flex-col md:items-stretch">
-          <label className="hidden text-[10px] font-bold tracking-widest text-gray-500 uppercase lg:block">
+        <div>
+          <label className="mb-2 block text-[10px] font-bold tracking-widest text-gray-500 uppercase">
             Language
           </label>
           <select
-            className={`rounded-md border px-2 py-1 text-xs outline-none md:px-3 md:py-2 md:text-sm ${
+            className={`w-full rounded-md border px-3 py-2 text-sm outline-none ${
               isDark
-                ? "border-gray-700 bg-gray-800 text-white"
-                : "border-gray-300 bg-white text-black"
+                ? "border-gray-700 bg-gray-800 text-white focus:border-blue-500"
+                : "border-gray-300 bg-white text-black focus:border-blue-500"
             }`}
             value={language.id}
-            onChange={(e) => setLanguageId(e.target.value)}
+            onChange={(e) => {
+              setLanguageId(e.target.value);
+              onClose?.();
+            }}
           >
             {APP_LANGUAGES.sort((a, b) => a.label.localeCompare(b.label)).map(
               (l) => (
@@ -199,7 +207,7 @@ const Sidebar = ({
         </div>
       </div>
 
-      <div className="mt-auto hidden pt-4 md:block">
+      <div className="mt-auto pt-4">
         <p className="text-[10px] tracking-widest text-gray-400 uppercase">
           v{version}
         </p>

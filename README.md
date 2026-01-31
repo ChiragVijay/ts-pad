@@ -2,7 +2,7 @@
 
 TS Pad is a lightweight, real-time collaborative editor. It uses Conflict-free Replicated Data Types (CRDTs) to ensure consistent state across all users. It is inspired by [Rustpad](https://github.com/ekzhang/rustpad).
 
-A hosted example is available at [https://chiragvijay.com/editor](https://chiragvijay.com/editor) (deployed using [Render](https://render.com)).
+A hosted example is available at [https://editor.chiragvijay.com](https://editor.chiragvijay.com).
 
 ![TS Pad Dark Mode](public/screenshots/dark-py.png)
 
